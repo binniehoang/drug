@@ -4,16 +4,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 import multiprocessing
-import time
 import os
+
 import portalocker
 import csv
 import queue
-import threading
-# import signal library
-import signal
-import sys
-import atexit
+
 # Initialize global variables
 
 # importing tkinter for graphical user interface
@@ -29,7 +25,7 @@ class Application(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Drug Analysis GUI")
-        self.geometry("1000x600")
+        self.geometry("1000x1000")
 
         self.df = None
         self.X_train = None
@@ -37,7 +33,7 @@ class Application(tk.Tk):
         self.y_train = None
         self.y_test = None
         self.model = None
-
+        self.num_cores = multiprocessing.cpu_count()
         self.create_widgets()
 
     def write_predicted_data_to_csv(self):
@@ -134,6 +130,10 @@ class Application(tk.Tk):
             self.dropdown_target = tk.OptionMenu(self, self.selected_target, *features)
             self.dropdown_target.pack()
 
+    def on_closing(self):
+        if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            self.destroy()
+
 
     def preprocess_data(self):
         if self.df is None:
@@ -176,6 +176,8 @@ class Application(tk.Tk):
         try:
             self.model = LinearRegression()
             self.model.fit(self.X_train, self.y_train)
+            # with multiprocessing.Pool(processes=self.num_cores):
+            #     self.model.fit(self.X_train, self.y_train)
             self.output_text.insert(tk.END, "Model training completed.\n")
         except Exception as e:
             messagebox.showerror("Error", f"Model training error: {e}")
@@ -227,7 +229,10 @@ class Application(tk.Tk):
 
 if __name__ == "__main__":
 
-    # Close database connection
+
     app = Application()
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
+
+
 
