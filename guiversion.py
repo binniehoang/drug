@@ -1,7 +1,5 @@
-import sqlite3
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
@@ -42,6 +40,40 @@ class Application(tk.Tk):
 
         self.create_widgets()
 
+    def write_predicted_data_to_csv(self):
+        if self.model is None:
+            messagebox.showerror("Error", "Model not trained yet.")
+            return
+
+        if self.X_test is None:
+            messagebox.showerror("Error", "No test data available.")
+            return
+
+        try:
+            # Predict on test data
+            predicted_values = self.model.predict(self.X_test)
+
+            # Ask the user to select a file to save the predicted data
+            filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+            if not filename:
+                return
+            lockfile = filename + ".lock"
+            with open(lockfile, 'w') as lock:
+                portalocker.lock(lock, portalocker.LOCK_EX)
+                try:
+                    # Write predicted data to CSV file
+                    with open(filename, 'w', newline='') as csvfile:
+                        writer = csv.writer(csvfile)
+                        writer.writerow(['Predicted Value'])
+                        writer.writerows(
+                            [[value] for value in predicted_values])  # Convert each value into a list before writing
+                    self.output_text.insert(tk.END, f"Predicted data written to {filename}\n")
+                finally:
+                    portalocker.unlock(lock)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error writing predicted data: {e}")
+
     def create_widgets(self):
         self.label_file = tk.Label(self, text="Select CSV file:")
         self.label_file.pack()
@@ -73,6 +105,13 @@ class Application(tk.Tk):
         self.output_text = tk.Text(self, height=10, width=60)
         self.output_text.pack()
 
+        self.label_write_data = tk.Label(self, text="Write Predicted Data:")
+        self.label_write_data.pack()
+
+        self.button_write_data = tk.Button(self, text="Write Predicted Data to CSV",
+                                           command=self.write_predicted_data_to_csv)
+        self.button_write_data.pack()
+
     def browse_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
         if file_path:
@@ -95,6 +134,7 @@ class Application(tk.Tk):
             self.dropdown_target = tk.OptionMenu(self, self.selected_target, *features)
             self.dropdown_target.pack()
 
+
     def preprocess_data(self):
         if self.df is None:
             messagebox.showerror("Error", "No CSV file loaded.")
@@ -110,7 +150,7 @@ class Application(tk.Tk):
         try:
             # Drop missing values
             self.df = self.df.dropna()
-
+            self.df = self.df.drop(columns=['State'])
             # Split the data into input features (X) and target variable (y)
             X = self.df.drop(columns=[target], axis=1)  # Exclude target variable
             y = self.df[target]
@@ -146,15 +186,22 @@ class Application(tk.Tk):
             return
 
         feature = self.selected_feature.get()
-        if not feature:
-            messagebox.showerror("Error", "No feature selected for plotting.")
+        target = self.selected_target.get()
+        if not feature or not target:
+            messagebox.showerror("Error", "Please select both feature and target feature.")
             return
 
-        if feature not in self.df.columns:
-            messagebox.showerror("Error", "Invalid feature selected.")
+        if feature not in self.df.columns or target not in self.df.columns:
+            messagebox.showerror("Error", "Invalid feature or target feature selected.")
             return
 
         try:
+            # Preprocess data
+            self.preprocess_data()
+
+            # Train the model
+            self.train_model()
+
             # Plot the selected feature against the target variable
             plt.scatter(self.X_train[feature], self.y_train, color='blue', label='Training Data')
             plt.scatter(self.X_test[feature], self.y_test, color='red', label='Testing Data')
@@ -168,29 +215,12 @@ class Application(tk.Tk):
                      label='Regression Line')
 
             plt.xlabel(feature)
-            plt.ylabel('Target')
-            plt.title(f'{feature} vs Target')
+            plt.ylabel(target)
+            plt.title(f'{feature} vs {target}')
             plt.legend()
             plt.show()
         except Exception as e:
             messagebox.showerror("Error", f"Plotting error: {e}")
-
-
-
-
-
-def write_to_csv(filename, data):
-    lockfile = 'predicted_data.csv' + ".lock"
-    with open(lockfile, 'w') as lock:
-        portalocker.lock(lock, portalocker.LOCK_EX)
-        try:
-            with open(filename, 'a', newline='') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(data)
-        finally:
-            portalocker.unlock(lock)
-
-
 
 
 
